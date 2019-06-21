@@ -12,3 +12,5 @@ def initMenu(self):
     menuBar.Append("人脸录入")
 
 
+window = wx.Frame(None, title="学生签到系统", size=(920 , 560))
+panel = wx.Panel(window)
