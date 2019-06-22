@@ -1,20 +1,22 @@
 import wx
-
+import wx.grid
+from time import  localtime,strftime
 ID_NEW_ENTRY = 160
 ID_FINISH_ENTRY = 161
 ID_START_SIGNIN = 190
 ID_END_SIGNIN = 191
-
+ID_OPEN_RECORD = 283
+ID_CLOSE_RECORD = 284
 
 class SCIS(wx.Frame):
+    def __init__(self):
+        wx.Frame.__init__(self,parent = None,title = "学生签到系统",size = (920,560))
+        self.initMenu()
+        #self.initData()
 
-    def __init__(self, parent, title):
-        super(SCIS, self).__init__(parent, title=title, size=(120, 560))
-        self.InitUI()
-
-    def InitUI(self):
+    def initMenu(self):
         menubar = wx.MenuBar()
-        menu_Font = wx.Font()#Font(facename = "consolas",pointsize = 20)
+        menu_Font = wx.Font()
         menu_Font.SetPointSize(14)
         menu_Font.SetWeight(wx.BOLD)
 
@@ -25,7 +27,7 @@ class SCIS(wx.Frame):
         self.new_entry.SetFont(menu_Font)
         entryMenu.Append(self.new_entry)
 
-        self.finish_entry = wx.MenuItem(entryMenu, ID_FINISH_ENTRY, "完成录入")
+        self.finish_entry = wx.MenuItem(entryMenu, ID_FINISH_ENTRY,  "完成录入")
         self.finish_entry.SetBitmap(wx.Bitmap("drawable/finish_entry.png"))
         self.finish_entry.SetTextColour("BLUE")
         self.finish_entry.SetFont(menu_Font)
@@ -46,29 +48,31 @@ class SCIS(wx.Frame):
         self.end_signin.Enable(False)
         signinMenu.Append(self.end_signin)
 
+        recordMenu = wx.Menu()
+        self.open_record = wx.MenuItem(recordMenu,ID_OPEN_RECORD,"打开记录")
+        self.open_record.SetBitmap(wx.Bitmap("drawable/open_record.png"))
+        self.open_record.SetTextColour("BLUE")
+        self.open_record.SetFont(menu_Font)
+        recordMenu.Append(self.open_record)
 
+        self.close_record = wx.MenuItem(recordMenu, ID_CLOSE_RECORD, "关闭记录")
+        self.close_record.SetBitmap(wx.Bitmap("drawable/close_record.png"))
+        self.close_record.SetTextColour("BLUE")
+        self.close_record.SetFont(menu_Font)
+        recordMenu.Append(self.close_record)
 
-
-        fileMenu1 = wx.Menu()
-        fileMenu2 = wx.Menu()
-        fileMenu3 = wx.Menu()
-        menubar.Append(fileMenu1, '&人脸录入')
-        menubar.Append(fileMenu2, '&刷脸签到')
-        menubar.Append(fileMenu3, '&出勤记录')
+        menubar.Append(entryMenu,'&人脸录入')
+        menubar.Append(signinMenu,'&刷脸签到')
+        menubar.Append(recordMenu,'&出勤记录')
         self.SetMenuBar(menubar)
-        self.text = wx.TextCtrl(self, -1, style=wx.EXPAND | wx.TE_MULTILINE)
-        self.Bind(wx.EVT_MENU, self.menuhandler)
-        self.SetSize((1000, 800))
-        self.Centre()
-        self.Show(True)
 
-    def menuhandler(self, event):
-        id = event.GetId()
-        if id == wx.ID_NEW:
-            self.text.AppendText("new" + "\n")
+    def getDateTime(self):
+        datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
+        return "[" + datetime + "]"
 
 app = wx.App()
-SCIS(None, '学生签到系统')
+frame = SCIS()
+frame.Show()
 app.MainLoop()
 
 
