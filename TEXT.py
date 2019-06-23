@@ -1,18 +1,21 @@
 import wx
 import wx.grid
-from time import  localtime,strftime
+from time import localtime,strftime
+import sqlite3
+
 ID_NEW_ENTRY = 160
 ID_FINISH_ENTRY = 161
 ID_START_SIGNIN = 190
 ID_END_SIGNIN = 191
 ID_OPEN_RECORD = 283
 ID_CLOSE_RECORD = 284
+ID_STUDENT_SIGN = -1
 
 class SCIS(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self,parent = None,title = "学生签到系统",size = (920,560))
         self.initMenu()
-        #self.initData()
+        self.ininDataBase()
 
     def initMenu(self):
         menubar = wx.MenuBar()
@@ -66,9 +69,21 @@ class SCIS(wx.Frame):
         menubar.Append(recordMenu,'&出勤记录')
         self.SetMenuBar(menubar)
 
+
+
     def getDateTime(self):
         datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
         return "[" + datetime + "]"
+    def initDataBase(self):
+        conn = sqlite3.connect("sqlite.db")
+        cu = conn.cursor()
+        cu.execute('''CREATE TABLE if not exists stu_info(
+            stu_name text not null,
+            stu_id int not null primary key,
+            face_info array not null)''')
+        cu.close()
+        conn.commit()
+        conn.close()
 
 app = wx.App()
 frame = SCIS()
