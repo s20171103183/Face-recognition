@@ -15,7 +15,16 @@ class SCIS(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self,parent = None,title = "学生签到系统",size = (920,560))
         self.initMenu()
-        self.ininDataBase()
+        self.initDataBase()
+        self.initData()
+
+    def initData(self):
+        self.name = ""
+        self.id = ID_STUDENT_SIGN
+        self.face_info = ""
+        self.pic_num = 0
+        self.flag_entry = False
+        self.sigin_time = "08:20;00"
 
     def initMenu(self):
         menubar = wx.MenuBar()
@@ -69,18 +78,58 @@ class SCIS(wx.Frame):
         menubar.Append(recordMenu,'&出勤记录')
         self.SetMenuBar(menubar)
 
-
-
     def getDateTime(self):
         datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
         return "[" + datetime + "]"
+
     def initDataBase(self):
         conn = sqlite3.connect("sqlite.db")
         cu = conn.cursor()
-        cu.execute('''CREATE TABLE if not exists stu_info(
+        cu.execute('''create table if not exists Stu_Info(
             stu_name text not null,
             stu_id int not null primary key,
             face_info array not null)''')
+        cu.execute('''create table if not exists Sign_Info(
+            time_info text not null,
+            stu_id int not null,
+            stu_name text not null,
+            if_late text not null)''')
+        cu.close()
+        conn.commit()
+        conn.close()
+
+    def callDataBase(self,flag):
+        conn = sqlite3.connect("sqlite.db")
+        cu = conn.cursor()
+        if flag == 1:
+            self.knew_stu_id = []
+            self.knew_stu_name = []
+            self.knew_face_info = []
+            cu.execute('select stu_id,stu_name,face_info from Stu_Info')
+            res = cu.fetchall()
+            for row in res:
+                print(row[0])
+                self.knew_stu_id.append(row[0])
+                print(row[1])
+                self.knew_stu_name.append(row[1])
+                print(row[2])
+                self.knew_face_info.append(row[2])
+        if flag == 2:
+            self.knew_time_info = []
+            self.knew_stu_id = []
+            self.knew_stu_name = []
+            self.knew_if_late = []
+            cu.execute('select stu_id,stu_name,time_info,if_late from Sign_Info')
+            res = cu.fetchall()
+            for row in res:
+                print(row[0])
+                self.knew_stu_id.append(row[0])
+                print(row[1])
+                self.knew_stu_name.append(row[1])
+                print(row[2])
+                self.knew_time_info.append(row[2])
+                print(row[3])
+                self.knew_if_late.append(row[3])
         cu.close()
         conn.commit()
         conn.close()
