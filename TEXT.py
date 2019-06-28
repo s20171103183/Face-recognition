@@ -6,8 +6,7 @@ import numpy as np
 import dlib
 import os
 import _thread
-from skimage import io as iio
-import io
+
 
 ID_NEW_ENTRY = 160
 ID_FINISH_ENTRY = 161
@@ -21,7 +20,15 @@ PATH_FACE = "data/face_img_database"
 facerec = dlib.face_recognition_model_v1("E:/model/dlib_face_recognition_resnet_model_v1.dat")
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("E:/model/shape_predictor_68_face_landmarks.dat")
-
+def return_Eucdiatance(vec1,vec2):
+    vec1 = np.array(vec1)
+    vec2 = np.array(vec2)
+    distance = np.sqrt(np.sum(np.square(vec1-vec2)))
+    print("欧氏距离：",distance)
+    if distance > 0.4:
+        return "difference"
+    else:
+        return "same"
 
 class SCIS(wx.Frame):
     def __init__(self):
@@ -29,6 +36,7 @@ class SCIS(wx.Frame):
         self.initMenu()
         self.initDataBase()
         self.initData()
+        self.initMainpanel()
 
     def initData(self):
         self.name = ""
@@ -93,6 +101,8 @@ class SCIS(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.OnOpenRecordClicked, id=ID_OPEN_RECORD)
         self.Bind(wx.EVT_MENU, self.OnNewEntryClicked, id=ID_NEW_ENTRY)
+        self.Bind(wx.EVT_MENU, self.OnCloseRecordClicked, id=ID_CLOSE_RECORD)
+        self.Bind(wx.EVT_MENU, self.OnFinishEntryClicked, id=ID_FINISH_ENTRY)
     def OnOpenRecordClicked(self,event):
         self.callDataBase(2)
         grid = wx.grid.Grid(self,pos = (320,0),size = (600,500))
@@ -110,11 +120,17 @@ class SCIS(wx.Frame):
         grid.SetColSize(2,150)
         grid.SetColSize(3,150)
         grid.SetCellTextColour("BLACK")
-        for i,stu_id in enumerate(self.Sign_Info_stu_id):
-            grid.SetCellValue(i,0,str(stu_id))
-            grid.SetCellValue(i,1,self.Sign_Info_stu_names(i))
+        for i,stu_id in enumerate(self.Sign_Info_id):
+            grid.SetCellValue(i,0,str(id))
+            grid.SetCellValue(i,1,self.Sign_Info_name(i))
             grid.SetCellValue(i,2,self.Sign_Info_time_info(i))
             grid.SetCellValue(i,3,self.Sign_Info_if_late(i))
+    def OnCloseRecordClicked(self,event):
+        self.initMainpanel()
+
+    def OnFinishEntryClicked(self,event):
+        self.initMainpanel()
+
     def entry_cap(self,event):
         pass
 
@@ -122,19 +138,17 @@ class SCIS(wx.Frame):
         self.new_entry.Enable(False)
         self.finish_entry.Enable(True)
         self.callDataBase(1)
-        while self.knew_stu_id== ID_STUDENT_SIGN:
-            self.knew_stu_id= wx.GetNumberFromUser(message="请输入您的学号",prompt="学号",caption= "提示",value= ID_STUDENT_SIGN,
-                                               min = ID_STUDENT_SIGN,max = 100000000000)
-            for knew_stu_id in self.knew_stu_id:
-                if knew_stu_id == self.stu_id:
-                    self.knew_stu_id = ID_STUDENT_SIGN
+        while self.id== ID_STUDENT_SIGN:
+            self.id= wx.GetNumberFromUser(message="请输入您的学号",prompt="学号",caption= "提示",value= 0,
+                                               min = ID_STUDENT_SIGN,max = 9999999)
+            for knew_id in self.knew_id:
+                if knew_id == self.id:
+                    self.id = ID_STUDENT_SIGN
                     wx.MessageBox(message = "学号已存在，请再次输入",caption = "提示")
         while self.name == '':
             self.name = wx.GetTextFromUser(message="请输入您的的姓名,用于创建姓名文件夹",
-                                           caption="温馨提示",
+                                           caption="提示",
                                            default_value="")
-
-            # 监测是否重名
             for exsit_name in (os.listdir(PATH_FACE)):
                 if self.name == exsit_name:
                     wx.MessageBox(message="姓名文件夹已存在，请重新输入", caption="警告")
@@ -142,61 +156,66 @@ class SCIS(wx.Frame):
                     break
         os.makedirs(PATH_FACE + self.name)
         _thread.start_new_thread(self.entry_cap, (event,))
-        pass
 
+    def initMainpanel(self):
+        self.index_pic = wx.Image("E:/drawable/index.png",wx.BITMAP_TYPE_ANY).Scale(920,500)
+        self.bmp = wx.StaticBitmap(parent = self,pos = (320,0),bitmap = wx.Bitmap(self.index_pic))
 
     def getDateTime(self):
         datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
         return "[" + datetime + "]"
 
     def initDataBase(self):
-        conn = sqlite3.connect("sqlite.db")
+        conn = sqlite3.connect("insuper.db")
         cu = conn.cursor()
-        cu.execute('''create table if not exists Stu_Info(
-            stu_name text not null,
-            stu_id int not null primary key,
-            face_info array not null)''')
-        cu.execute('''create table if not exists Sign_Info(
-            time_info text not null,
-            stu_id int not null,
-            stu_name text not null,
-            if_late text not null)''')
+        cu.execute('''create table if not exists Stu_Info
+                (name text not null,
+                id int not null primary key,
+                face_info array not null)''')
+        cu.execute('''create table if not exists Sign_Info
+                 (time_info text not null,
+                 id int not null,
+                 name text not null,
+                 if_late text not null)''')
+
         cu.close()
         conn.commit()
         conn.close()
 
     def callDataBase(self,flag):
-        conn = sqlite3.connect("sqlite.db")
+        conn = sqlite3.connect("insuper.db")
         cu = conn.cursor()
         if flag == 1:
-            self.knew_stu_id = []
-            self.knew_stu_name = []
-            self.knew_face_info = []
-            cu.execute('select stu_id,stu_name,face_info from Stu_Info')
+            self.knew_id = []
+            self.knew_name = []
+            self.knew_face_feature = []
+            cu.execute('select id,name,face_info from Stu_Info')
             res = cu.fetchall()
             for row in res:
                 print(row[0])
-                self.knew_stu_id.append(row[0])
+                self.knew_id.append(row[0])
                 print(row[1])
-                self.knew_stu_name.append(row[1])
-                print(row[2])
-                self.knew_face_info.append(row[2])
+                self.knew_name.append(row[1])
+                print(self.convert_array(row[2]))
+                self.knew_face_info.append(self.convert_array(row[2]))
+
         if flag == 2:
-            self.Sign_Info_stu_id = []
-            self.Sign_Info_stu_name = []
+            self.Sign_Info_id = []
+            self.Sign_Info_name = []
             self.Sign_Info_time_info = []
             self.Sign_Info_if_late = []
-            cu.execute('select stu_id,stu_name,time_info,if_late from Sign_Info')
+            cu.execute('select id,name,time_info,if_late from Sign_Info')
             res = cu.fetchall()
             for row in res:
                 print(row[0])
-                self.Sign_Info_stu_id.append(row[0])
+                self.Sign_Info_id.append(row[0])
                 print(row[1])
-                self.Sign_Info_stu_name.append(row[1])
+                self.Sign_Info_name.append(row[1])
                 print(row[2])
                 self.Sign_Info_time_info.append(row[2])
                 print(row[3])
                 self.Sign_Info_if_late.append(row[3])
+
 
 app = wx.App()
 frame = SCIS()
