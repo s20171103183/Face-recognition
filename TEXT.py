@@ -6,7 +6,7 @@ import numpy as np
 import dlib
 import os
 import _thread
-
+import cv2
 
 ID_NEW_ENTRY = 160
 ID_FINISH_ENTRY = 161
@@ -37,6 +37,7 @@ class SCIS(wx.Frame):
         self.initDataBase()
         self.initData()
         self.initMainpanel()
+        self.initInfopanel()
 
     def initData(self):
         self.name = ""
@@ -128,12 +129,74 @@ class SCIS(wx.Frame):
     def OnCloseRecordClicked(self,event):
         self.initMainpanel()
 
-    def OnFinishEntryClicked(self,event):
-        self.initMainpanel()
-
     def entry_cap(self,event):
-        pass
+        self.cap = cv2.VideoCapture(0)
+        while self.cap.isOpened():
+            flag,img_read = self.cap.read()
+            kk = cv2.waitKey(0.1)
+            dets = detector(img_read,1)
 
+            if len(dets) != 0:
+                biggest_face = dets[0]
+                maxArea = 0
+                for det in dets:
+                    w = det.right() - det.left()
+                    h = det.top() - det.bottom()
+                    if w*h > maxArea:
+                        biggest_face = det
+                        maxArea = w*h
+                cv2.rectangle(img_read,tuple([biggest_face.left(),biggest_face.top()]),
+                                       tuple([biggest_face.right(),biggest_face.bottom()]),
+                              (0,255,0),2)
+                img_read.height,img_read.width = img_read.shape[:2]
+                image1 = cv2.cvtColor(img_read,cv2.COLOR_BGR2RGB)
+                pic = wx.Bitmap.FromBuffer(img_read.height,img_read.width,image1)
+                self.bmp.SetBitmap(pic)
+                shape = predictor(img_read,biggest_face)
+                features_cap = facerec.compute_face_descriptor(img_read,shape)
+
+                for i,knew_face_info in enumerate(self.knew_face_info):
+                    compare = return_Eucdiatance(features_cap,knew_face_info)
+                    if compare == "same":
+                        self.infoText.AppendText(self.getDateTime() + "学号" + str(self.knew_id[i]) +
+                                                "姓名" + self.knew_name[i] + "人脸数据已存在\r\n")
+                        self.flag_entry = True
+                        self.OnFinishEntryClicked()
+                        _thread.exit()
+
+                face_height = biggest_face.bottom() - biggest_face.top()
+                face_width = biggest_face.right() - biggest_face.left()
+                img_blank = np.zeros((face_height,face_width,3),np.unit8)
+                try:
+                    for ii in range(face_height):
+                        for jj in range(face_width):
+                            img_blank[ii][jj] = img_read[biggest_face.top() + ii][biggest_face.left() + jj]
+                    if len(self.name) > 0:
+                        cv2.imencode('jpg',img_blank)[1].tofile(
+                            PATH_FACE + self.name + "/_img_face_" + str(self.pic_num) + ".jpg")
+                        self.pic_num += 1
+                        self.infoText.AppendText(self.getDateTime() + "图片：" + str(PATH_FACE + self.name) +
+                                        "/img_face" + str(self.pic_num) + ".jpg保存成功\r\n")
+                except:
+                    print("保存照片异常，请对准摄像头")
+                if self.new_entry.IsEnabled():
+                    _thread.exit()
+                if self.pic_num == 10:
+                    self.OnFinishEntryClicked()
+                    _thread.exit()
+
+    def OnFinishEntry(self):
+        self.new_entry.IsEnabled(True)
+        self.finish_entry.IsEnabled(False)
+        self.cap.release()
+        self.bmp.SetBitmap(wx.Bitmap(self.index_pic))
+        if self.flag_entry == True:
+            dir = PATH_FACE + self.name
+
+
+
+    def OnFinishEntryClicked(self, event):
+        pass
     def OnNewEntryClicked(self,event):
         self.new_entry.Enable(False)
         self.finish_entry.Enable(True)
@@ -157,9 +220,25 @@ class SCIS(wx.Frame):
         os.makedirs(PATH_FACE + self.name)
         _thread.start_new_thread(self.entry_cap, (event,))
 
+    def initInfopanel(self):
+        resultText = wx.StaticText(parent = self,pos = (10,20),size = (90,60))
+        resultText.SetBackgroundColour("red")
+        self.info = "\r\n" + self.getDateTime() + "程序初始化成功\r\n"
+        self.infoText = wx.TextCtrl(parent = self,size = (320,500),
+                                    style = wx.TE_MULTILINE|wx.HSCROLL|wx.TE_READONLY)
+        self.infoText.SetForegroundColour("GREEN")
+        self.infoText.SetLabel(self.info)
+        font = wx.Font()
+        font.SetPointSize(12)
+        font.SetWeight(wx.BOLD)
+        font.SetUnderlined(True)
+
+        self.infoText.SetFont(font)
+        self.infoText.SetBackgroundColour("GRAY")
+
     def initMainpanel(self):
-        self.index_pic = wx.Image("E:/drawable/index.png",wx.BITMAP_TYPE_ANY).Scale(920,500)
-        self.bmp = wx.StaticBitmap(parent = self,pos = (320,0),bitmap = wx.Bitmap(self.index_pic))
+        self.index_pic = wx.Image("E:/drawable/index.png",wx.BITMAP_TYPE_ANY).Scale(600,500)
+        self.bmp = wx.StaticBitmap(parent = self, pos = (320,0), bitmap = wx.Bitmap(self.index_pic))
 
     def getDateTime(self):
         datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
@@ -188,7 +267,7 @@ class SCIS(wx.Frame):
         if flag == 1:
             self.knew_id = []
             self.knew_name = []
-            self.knew_face_feature = []
+            self.knew_face_info = []
             cu.execute('select id,name,face_info from Stu_Info')
             res = cu.fetchall()
             for row in res:
