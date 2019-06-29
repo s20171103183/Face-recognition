@@ -192,8 +192,64 @@ class SCIS(wx.Frame):
         self.bmp.SetBitmap(wx.Bitmap(self.index_pic))
         if self.flag_entry == True:
             dir = PATH_FACE + self.name
+    def sign_cap(self):
+        self.cap = cv2.VideoCapture(0)
+        while self.cap.isOpened():
+            flag, im_rd = self.cap.read()
+            kk = cv2.waitKey(1)
+            dets = detector(im_rd, 1)
 
+            if len(dets) != 0:
+                biggest_face = dets[0]
+                maxArea = 0
+                for det in dets:
+                    w = det.right() - det.left()
+                    h = det.top() - det.bottom()
+                    if w * h > maxArea:
+                        biggest_face = det
+                        maxArea = w * h
 
+                cv2.rectangle(im_rd, tuple([biggest_face.left(), biggest_face.top()]),
+                              tuple([biggest_face.right(), biggest_face.bottom()]),
+                              (255, 0, 255), 2)
+                img_height, img_width = im_rd.shape[:2]
+                image1 = cv2.cvtColor(im_rd, cv2.COLOR_BGR2RGB)
+                pic = wx.Bitmap.FromBuffer(img_width, img_height, image1)
+                self.bmp.SetBitmap(pic)
+
+                shape = predictor(im_rd, biggest_face)
+                features_cap = facerec.compute_face_descriptor(im_rd, shape)
+
+                for i, knew_face_info in enumerate(self.knew_face_info):
+                    # 将某张人脸与存储的所有人脸数据进行比对
+                    compare = return_Eucdiatance(features_cap, knew_face_info)
+                    if compare == "same":  # 找到了相似脸
+                        print("same")
+                        flag = 0
+                        nowdt = self.getDateAndTime()
+                        for j, logcat_name in enumerate(self.logcat_name):
+                            if logcat_name == self.knew_name[i] and nowdt[0:nowdt.index(" ")] == self.logcat_datetime[
+                                                                                                     j][
+                                                                                                 0:self.logcat_datetime[
+                                                                                                     j].index(" ")]:
+                                self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
+                                                         + " 姓名:" + self.knew_name[i] + " 签到失败,重复签到\r\n")
+                                flag = 1
+                                break
+
+                        if flag == 1:
+                            break
+
+                        if nowdt[nowdt.index(" ") + 1:-1] <= self.puncard_time:
+                            self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
+                                                     + " 姓名:" + self.knew_name[i] + " 成功签到,且未迟到\r\n")
+                            self.insertARow([self.knew_id[i], self.knew_name[i], nowdt, "否"], 1)
+                        else:
+                            self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
+                                                     + " 姓名:" + self.knew_name[i] + " 成功签到,但迟到了\r\n")
+                            self.insertARow([self.knew_id[i], self.knew_name[i], nowdt, "是"], 2)
+                        self.callDataBase(2)
+                        break
 
     def OnFinishEntryClicked(self, event):
         pass
