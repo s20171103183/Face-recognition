@@ -3,6 +3,7 @@ import wx.grid
 from time import localtime,strftime
 import sqlite3
 import numpy as np
+from skimage import io as iio
 import dlib
 import os
 import _thread
@@ -104,6 +105,8 @@ class SCIS(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnNewEntryClicked, id=ID_NEW_ENTRY)
         self.Bind(wx.EVT_MENU, self.OnCloseRecordClicked, id=ID_CLOSE_RECORD)
         self.Bind(wx.EVT_MENU, self.OnFinishEntryClicked, id=ID_FINISH_ENTRY)
+        self.Bind(wx.EVT_MENU, self.OnStartSigninClicked, id = ID_START_SIGNIN)
+
     def OnOpenRecordClicked(self,event):
         self.callDataBase(2)
         grid = wx.grid.Grid(self,pos = (320,0),size = (600,500))
@@ -133,7 +136,7 @@ class SCIS(wx.Frame):
         self.cap = cv2.VideoCapture(0)
         while self.cap.isOpened():
             flag,img_read = self.cap.read()
-            kk = cv2.waitKey(0.1)
+            kk = cv2.waitKey(0,1)
             dets = detector(img_read,1)
 
             if len(dets) != 0:
@@ -192,6 +195,48 @@ class SCIS(wx.Frame):
         self.bmp.SetBitmap(wx.Bitmap(self.index_pic))
         if self.flag_entry == True:
             dir = PATH_FACE + self.name
+            for file in os.listdir(dir):
+                os.remove(dir + "/" + file)
+                print("已删除已录入人脸的图片", dir + "/" + file)
+            os.rmdir(PATH_FACE + self.name)
+            print("已删除已录入人脸的姓名文件夹", dir)
+            self.initData()
+            return
+        if self.pic_num > 0:
+            pics = os.listdir(PATH_FACE + self.name)
+            feature_list = []
+            feature_average = []
+            for i in range(len(pics)):
+                pic_path = PATH_FACE + self.name + "/" + pics[i]
+                print("正在读的人脸图像：", pic_path)
+                img = iio.imread(pic_path)
+                img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                dets = detector(img_gray, 1)
+                if len(dets) != 0:
+                    shape = predictor(img_gray, dets[0])
+                    face_descriptor = facerec.compute_face_descriptor(img_gray, shape)
+                    feature_list.append(face_descriptor)
+                else:
+                    face_descriptor = 0
+                    print("未在照片中识别到人脸")
+            if len(feature_list) > 0:
+                for j in range(128):
+                    feature_average.append(0)
+                    for i in range(len(feature_list)):
+                        feature_average[j] += feature_list[i][j]
+                    feature_average[j] = (feature_average[j]) / len(feature_list)
+                self.insertARow([self.id, self.name, feature_average], 1)
+                self.infoText.AppendText(self.getDateAndTime() + "工号:" + str(self.id)
+                                         + " 姓名:" + self.name + " 的人脸数据已成功存入\r\n")
+            pass
+
+        else:
+            os.rmdir(PATH_FACE + self.name)
+            print("已删除空文件夹", PATH_FACE + self.name)
+        self.initData()
+
+    def OnFinishEntryClicked(self,event):
+        self.OnFinishRegister()
     def sign_cap(self):
         self.cap = cv2.VideoCapture(0)
         while self.cap.isOpened():
@@ -227,15 +272,7 @@ class SCIS(wx.Frame):
                         print("same")
                         flag = 0
                         nowdt = self.getDateAndTime()
-                        for j, logcat_name in enumerate(self.logcat_name):
-                            if logcat_name == self.knew_name[i] and nowdt[0:nowdt.index(" ")] == self.logcat_datetime[
-                                                                                                     j][
-                                                                                                 0:self.logcat_datetime[
-                                                                                                     j].index(" ")]:
-                                self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
-                                                         + " 姓名:" + self.knew_name[i] + " 签到失败,重复签到\r\n")
-                                flag = 1
-                                break
+                        
 
                         if flag == 1:
                             break
@@ -251,7 +288,6 @@ class SCIS(wx.Frame):
                         self.callDataBase(2)
                         break
 
-    def OnFinishEntryClicked(self, event):
         pass
     def OnNewEntryClicked(self,event):
         self.new_entry.Enable(False)
@@ -275,6 +311,24 @@ class SCIS(wx.Frame):
                     break
         os.makedirs(PATH_FACE + self.name)
         _thread.start_new_thread(self.entry_cap, (event,))
+
+    def OnStartSigninClicked(self,event):
+            self.start_signin.Enable(False)
+            self.end_signin.Enable(True)
+            self.callDataBase(2)
+            _thread.start_new_thread(self.sign_cap,(event,))
+
+    def OnEndPunchCardClicked(self, event):
+            self.start_sigin.Enable(True)
+            self.end_sigin.Enable(False)
+            pass
+
+    def OnFinishEntryClicked(self, event):
+            self.OnFinishEntry()
+            pass
+
+
+
 
     def initInfopanel(self):
         resultText = wx.StaticText(parent = self,pos = (10,20),size = (90,60))
