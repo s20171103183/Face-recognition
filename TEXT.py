@@ -178,7 +178,7 @@ class SCIS(wx.Frame):
                         cv2.imencode('jpg',img_blank)[1].tofile(
                             PATH_FACE + self.name + "/_img_face_" + str(self.pic_num) + ".jpg")
                         self.pic_num += 1
-                        self.infoText.AppendText(self.getDateTime() + "图片：" + str(PATH_FACE + self.name) +
+                        self.initInfopanel().AppendText(self.getDateTime() + "图片：" + str(PATH_FACE + self.name) +
                                         "/img_face" + str(self.pic_num) + ".jpg保存成功\r\n")
                 except:
                     print("保存照片异常，请对准摄像头")
@@ -187,6 +187,29 @@ class SCIS(wx.Frame):
                 if self.pic_num == 10:
                     self.OnFinishEntryClicked()
                     _thread.exit()
+
+    def OnNewEntryClicked(self,event):
+        self.new_entry.Enable(False)
+        self.finish_entry.Enable(True)
+        self.callDataBase(1)
+        while self.id== ID_STUDENT_SIGN:
+            self.id= wx.GetNumberFromUser(message="请输入您的学号",prompt="学号",caption= "提示",value= 0,
+                                               min = ID_STUDENT_SIGN,max = 9999999)
+            for knew_id in self.knew_id:
+                if knew_id == self.id:
+                    self.id = ID_STUDENT_SIGN
+                    wx.MessageBox(message = "学号已存在，请再次输入",caption = "提示")
+        while self.name == '':
+            self.name = wx.GetTextFromUser(message="请输入您的的姓名,用于创建姓名文件夹",
+                                           caption="提示",
+                                           default_value="")
+            for exsit_name in (os.listdir(PATH_FACE)):
+                if self.name == exsit_name:
+                    wx.MessageBox(message="姓名文件夹已存在，请重新输入", caption="警告")
+                    self.name = ''
+                    break
+        os.makedirs(PATH_FACE + self.name)
+        _thread.start_new_thread(self.entry_cap, (event,))
 
     def OnFinishEntry(self):
         self.new_entry.IsEnabled(True)
@@ -237,13 +260,13 @@ class SCIS(wx.Frame):
 
     def OnFinishEntryClicked(self,event):
         self.OnFinishRegister()
-    def sign_cap(self):
+
+    def sign_cap(self,event):
         self.cap = cv2.VideoCapture(0)
         while self.cap.isOpened():
-            flag, im_rd = self.cap.read()
+            flag, img_read = self.cap.read()
             kk = cv2.waitKey(1)
-            dets = detector(im_rd, 1)
-
+            dets = detector(img_read, 1)
             if len(dets) != 0:
                 biggest_face = dets[0]
                 maxArea = 0
@@ -254,81 +277,56 @@ class SCIS(wx.Frame):
                         biggest_face = det
                         maxArea = w * h
 
-                cv2.rectangle(im_rd, tuple([biggest_face.left(), biggest_face.top()]),
+                cv2.rectangle(img_read, tuple([biggest_face.left(), biggest_face.top()]),
                               tuple([biggest_face.right(), biggest_face.bottom()]),
                               (255, 0, 255), 2)
-                img_height, img_width = im_rd.shape[:2]
-                image1 = cv2.cvtColor(im_rd, cv2.COLOR_BGR2RGB)
+                img_height, img_width = img_read.shape[:2]
+                image1 = cv2.cvtColor(img_read, cv2.COLOR_BGR2RGB)
                 pic = wx.Bitmap.FromBuffer(img_width, img_height, image1)
                 self.bmp.SetBitmap(pic)
 
-                shape = predictor(im_rd, biggest_face)
-                features_cap = facerec.compute_face_descriptor(im_rd, shape)
+                shape = predictor(img_read, biggest_face)
+                features_cap = facerec.compute_face_descriptor(img_read, shape)
 
                 for i, knew_face_info in enumerate(self.knew_face_info):
-                    # 将某张人脸与存储的所有人脸数据进行比对
                     compare = return_Eucdiatance(features_cap, knew_face_info)
-                    if compare == "same":  # 找到了相似脸
+                    if compare == "same":
                         print("same")
                         flag = 0
                         nowdt = self.getDateAndTime()
-                        
+                        for j, Sign_Info_name in enumerate(self.logcat_name):
+                            if Sign_Info_name == self.knew_name[i] and nowdt[0:nowdt.index(" ")] == \
+                                    self.Sign_Info_time_info[j][ 0:self.Sign_Info_time_info[ j].index(" ")]:
+                                self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
+                                                         + " 姓名:" + self.knew_name[i] + " 签到失败,重复签到\r\n")
+                                flag = 1
+                                break
 
                         if flag == 1:
                             break
 
-                        if nowdt[nowdt.index(" ") + 1:-1] <= self.puncard_time:
-                            self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
+                        if nowdt[nowdt.index(" ") + 1:-1] <= self.Sign_Info_time_info:
+                            self.initInfopanel().AppendText(nowdt + "工号:" + str(self.knew_id[i])
                                                      + " 姓名:" + self.knew_name[i] + " 成功签到,且未迟到\r\n")
                             self.insertARow([self.knew_id[i], self.knew_name[i], nowdt, "否"], 1)
                         else:
-                            self.infoText.AppendText(nowdt + "工号:" + str(self.knew_id[i])
+                            self.initInfopanel().AppendText(nowdt + "工号:" + str(self.knew_id[i])
                                                      + " 姓名:" + self.knew_name[i] + " 成功签到,但迟到了\r\n")
                             self.insertARow([self.knew_id[i], self.knew_name[i], nowdt, "是"], 2)
                         self.callDataBase(2)
                         break
-
         pass
-    def OnNewEntryClicked(self,event):
-        self.new_entry.Enable(False)
-        self.finish_entry.Enable(True)
-        self.callDataBase(1)
-        while self.id== ID_STUDENT_SIGN:
-            self.id= wx.GetNumberFromUser(message="请输入您的学号",prompt="学号",caption= "提示",value= 0,
-                                               min = ID_STUDENT_SIGN,max = 9999999)
-            for knew_id in self.knew_id:
-                if knew_id == self.id:
-                    self.id = ID_STUDENT_SIGN
-                    wx.MessageBox(message = "学号已存在，请再次输入",caption = "提示")
-        while self.name == '':
-            self.name = wx.GetTextFromUser(message="请输入您的的姓名,用于创建姓名文件夹",
-                                           caption="提示",
-                                           default_value="")
-            for exsit_name in (os.listdir(PATH_FACE)):
-                if self.name == exsit_name:
-                    wx.MessageBox(message="姓名文件夹已存在，请重新输入", caption="警告")
-                    self.name = ''
-                    break
-        os.makedirs(PATH_FACE + self.name)
-        _thread.start_new_thread(self.entry_cap, (event,))
 
     def OnStartSigninClicked(self,event):
-            self.start_signin.Enable(False)
-            self.end_signin.Enable(True)
-            self.callDataBase(2)
-            _thread.start_new_thread(self.sign_cap,(event,))
+        self.start_signin.Enable(False)
+        self.end_signin.Enable(True)
+        self.callDataBase(2)
+        _thread.start_new_thread(self.sign_cap,(event,))
 
     def OnEndPunchCardClicked(self, event):
-            self.start_sigin.Enable(True)
-            self.end_sigin.Enable(False)
-            pass
-
-    def OnFinishEntryClicked(self, event):
-            self.OnFinishEntry()
-            pass
-
-
-
+        self.start_sigin.Enable(True)
+        self.end_sigin.Enable(False)
+        pass
 
     def initInfopanel(self):
         resultText = wx.StaticText(parent = self,pos = (10,20),size = (90,60))
@@ -370,6 +368,23 @@ class SCIS(wx.Frame):
         cu.close()
         conn.commit()
         conn.close()
+
+    def insertARow(self,Row,flag):
+        conn = sqlite3.connect("inspurer.db")
+        cur = conn.cursor()
+        if flag == 1:
+            cur.execute("insert into Stu_Info (id,name,face_info) values(?,?,?)",
+                    (Row[0],Row[1],self.adapt_array(Row[2])))
+            print("写人脸数据成功")
+        if flag == 2:
+            cur.execute("insert into Sign_Info (id,name,time_info,if_late) values(?,?,?,?)",
+                        (Row[0],Row[1],Row[2],Row[3]))
+            print("写日志成功")
+            pass
+        cur.close()
+        conn.commit()
+        conn.close()
+        pass
 
     def callDataBase(self,flag):
         conn = sqlite3.connect("insuper.db")
